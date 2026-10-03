@@ -15,7 +15,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="dosbox" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.3 — local DOSBox WASM + local ZIP extraction</footer>
+<footer>DOSemmu v0.4 — local DOSBox WASM + ZIP launcher</footer>
 <script src="fflate.js"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');
@@ -46,11 +46,12 @@ function mkdirp(fs,path){
   }
 }
 function mountFiles(fs){
+  try{fs.mkdir('/dosgame')}catch(e){}
   for(const [path,data] of gameFiles){
     const parts=path.split('/');
     const dir=parts.slice(0,-1).join('/');
-    if(dir) mkdirp(fs,'/'+dir);
-    fs.writeFile('/'+path,data);
+    if(dir) mkdirp(fs,'/dosgame/'+dir);
+    fs.writeFile('/dosgame/'+path,data);
   }
 }
 async function prepare(file){
@@ -77,15 +78,28 @@ async function startDosBox(){
   const path=selectedProgram;
   window.Module={
     canvas,
-    arguments:['-c','mount c: /','-c','c:','-c',path.replace(/\\/g,'/')],
-    preRun:[function(){try{mountFiles(Module.FS)}catch(err){started=false;status.textContent='File setup error: '+err.message}}],
-    onRuntimeInitialized:function(){status.textContent='DOSBox loaded — starting '+path;canvas.focus()},
+    arguments:['-c','mount c: /dosgame','-c','c:','-c','./'+path.replace(/\\/g,'/')],
+    locateFile:function(file){return 'dosbox/'+file},
+    preRun:[function(){
+      try{
+        mountFiles(Module.FS);
+        status.textContent='DOSBox files mounted — starting '+path;
+      }catch(err){
+        started=false;
+        status.textContent='File setup error: '+(err&&err.message?err.message:err);
+        throw err;
+      }
+    }],
+    onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — starting '+path;canvas.focus()},
+    onAbort:function(reason){started=false;status.textContent='DOSBox stopped: '+reason},
+    onExit:function(code){started=false;status.textContent='DOSBox exited (code '+code+').'},
+    monitorRunDependencies:function(left){if(left>0)status.textContent='Loading DOSBox runtime… '+left+' step(s) left'},
     print:function(t){status.textContent=t},
-    printErr:function(t){console.error(t)}
+    printErr:function(t){status.textContent='DOSBox: '+t;console.error(t)}
   };
   const s=document.createElement('script');
   s.src='dosbox/dosbox.js';
-  s.onload=()=>status.textContent='DOSBox engine loaded…';
+  s.onload=()=>status.textContent='DOSBox engine script loaded — starting runtime…';
   s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};
   document.body.appendChild(s);
 }
