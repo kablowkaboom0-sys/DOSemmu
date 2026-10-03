@@ -12,13 +12,13 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <header><h1>DOSemmu — DOSBox</h1><p>Local DOSBox WASM. ZIP game folders are extracted locally and mounted together.</p></header>
 <div id="controls"><label for="file">Choose DOS file or ZIP</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button></div>
 <div id="programs"><select id="program"></select><button id="launch">Launch selected program</button></div>
-<div id="screen"><canvas id="dosbox" tabindex="0"></canvas></div>
+<div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.6 — stable DOSBox WASM launcher</footer>
+<footer>DOSemmu v0.7 — DOSBox canvas compatibility fix</footer>
 <script src="fflate.js"></script>
 <script>
-const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');
+const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
 const programs=document.getElementById('programs'),program=document.getElementById('program'),launch=document.getElementById('launch');
 let started=false,gameFiles=new Map(),selectedProgram='';
 
