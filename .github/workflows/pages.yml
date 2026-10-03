@@ -27,7 +27,7 @@ jobs:
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: latest
+          version: 3.1.74
           actions-cache-folder: emsdk-cache
 
       - name: Build Em-DOSBox
@@ -35,7 +35,7 @@ jobs:
           git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox
           cd em-dosbox
           ./autogen.sh
-          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none
+          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sMAXIMUM_MEMORY=536870912 -sNO_EXIT_RUNTIME=1"
           emmake make
 
       - name: Bundle local ZIP extractor
