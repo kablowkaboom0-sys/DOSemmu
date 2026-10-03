@@ -41,8 +41,9 @@ jobs:
       - name: Bundle local ZIP extractor
         run: |
           npm init -y
-          npm install --no-save fflate@0.8.2
+          npm install --no-save fflate@0.8.3
           cp node_modules/fflate/umd/index.js fflate.js
+          test -s fflate.js
 
       - name: Assemble site
         run: |
