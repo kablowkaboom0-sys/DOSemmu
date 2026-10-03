@@ -16,7 +16,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="mobileKeyboard"><input id="mobileInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type DOS command"><button id="mobileEnter">Enter</button></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v2.2 — iPad local asm.js fallback + external keyboard</footer>
+<footer>DOSemmu v2.3 — asm.js loading diagnostics</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -120,6 +120,7 @@ async function startDosBox(){
   const wasmSupported=typeof WebAssembly==='object' && typeof WebAssembly.instantiate==='function';
   const useAsmFallback=isIPad || !wasmSupported;
   const runtimeFile=useAsmFallback?'dosbox-asm.js':'dosbox.js';
+  const runtimeUrl=new URL(runtimeFile,document.baseURI).href;
 
   window.Module={
     canvas,
@@ -150,8 +151,25 @@ async function startDosBox(){
   };
 
   status.textContent=useAsmFallback
-    ? 'iPad compatibility mode — starting bundled asm.js DOSBox…'
+    ? 'iPad compatibility mode — checking bundled asm.js DOSBox…'
     : 'Checking bundled DOSBox WASM…';
+
+  if(useAsmFallback){
+    try{
+      const probe=await fetch(runtimeUrl,{cache:'no-store',redirect:'follow'});
+      const type=(probe.headers.get('content-type')||'').toLowerCase();
+      if(!probe.ok) throw new Error('asm.js HTTP '+probe.status);
+      if(type.includes('text/html')) throw new Error('asm.js URL returned HTML instead of JavaScript');
+      if(!type.includes('javascript') && !type.includes('ecmascript') && !type.includes('text/plain') && !type.includes('application/octet-stream')){
+        throw new Error('asm.js unexpected content type: '+type);
+      }
+      status.textContent='Bundled asm.js file found — loading engine…';
+    }catch(err){
+      started=false;
+      status.textContent='asm.js file check failed: '+err.message+' | '+runtimeUrl;
+      return;
+    }
+  }
 
   if(!useAsmFallback){
     const wasmUrl=new URL('dosbox.wasm',document.baseURI).href;
@@ -171,11 +189,11 @@ async function startDosBox(){
 
   status.textContent='Loading bundled DOSBox '+(useAsmFallback?'asm.js':'WASM')+' engine…';
   const s=document.createElement('script');
-  s.src=new URL(runtimeFile,document.baseURI).href;
+  s.src=runtimeUrl+'?v=2.3';
   s.onload=()=>status.textContent='Bundled DOSBox engine loaded — initializing…';
   s.onerror=()=>{
     started=false;
-    status.textContent='Local DOSBox engine failed to load: '+s.src;
+    status.textContent='DOSBox engine script failed: '+s.src;
   };
   document.body.appendChild(s);
 }
@@ -211,9 +229,9 @@ async function startDosBoxAsm(path,args){
     printErr:function(t){if(t){status.textContent='DOSBox: '+t;console.error(t)}}
   };
   const s=document.createElement('script');
-  s.src=new URL('dosbox-asm.js',document.baseURI).href;
+  s.src=new URL('dosbox-asm.js',document.baseURI).href+'?v=2.3';
   s.onload=()=>status.textContent='Bundled asm.js engine loaded — initializing…';
-  s.onerror=()=>{started=false;status.textContent='Bundled asm.js DOSBox engine failed to load.'};
+s.onerror=()=>{started=false;status.textContent='asm.js script failed to execute/load: '+s.src};
   document.body.appendChild(s);
 }
 
