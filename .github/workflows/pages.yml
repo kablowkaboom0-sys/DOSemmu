@@ -27,7 +27,7 @@ jobs:
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.74
+          version: latest
           actions-cache-folder: emsdk-cache
 
       - name: Build Em-DOSBox
@@ -35,7 +35,7 @@ jobs:
           git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox
           cd em-dosbox
           ./autogen.sh
-          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sMAXIMUM_MEMORY=536870912 -sNO_EXIT_RUNTIME=1"
+          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sMAXIMUM_MEMORY=536870912 -sFORCE_FILESYSTEM=1"
           emmake make
 
       - name: Bundle local ZIP extractor
@@ -51,6 +51,7 @@ jobs:
           cp fflate.js _site/fflate.js
           cp em-dosbox/src/dosbox.js _site/dosbox/dosbox.js
           cp em-dosbox/src/dosbox.wasm _site/dosbox/dosbox.wasm
+          cp em-dosbox/src/dosbox.html _site/dosbox/dosbox.html
           cp em-dosbox/COPYING _site/dosbox/COPYING
           printf '%s\n' 'DOSBox is GPL software. Source: https://github.com/dreamlayers/em-dosbox' > _site/dosbox/LICENSE-INFO.txt
           touch _site/.nojekyll
