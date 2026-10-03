@@ -1,4 +1,3 @@
-// downloaded from https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js
 !(function (f) {
   typeof module != "undefined" && typeof exports == "object"
     ? (module.exports = f())
