@@ -15,13 +15,13 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.9 — local ZIP extractor fix</footer>
-<script src="fflate.js" onerror="window.__fflateLoadError=true"></script>
+<footer>DOSemmu v1.0 — bundled local ZIP extractor</footer>
+<script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
 const programs=document.getElementById('programs'),program=document.getElementById('program'),launch=document.getElementById('launch');
-let zipLib=null;
-window.addEventListener('load',()=>{zipLib=window.fflate||null;if(!zipLib){status.textContent=window.__fflateLoadError?'ZIP extractor failed to load from this page.':'ZIP extractor is not available.';}});
+const zipLib=window.fflate||null;
+if(!zipLib) status.textContent='ZIP extractor failed to load from the repository.';
 let started=false,gameFiles=new Map(),selectedProgram='';
 window.addEventListener('error',e=>{status.textContent='Runtime error: '+(e.message||'unknown JavaScript error')});
 window.addEventListener('unhandledrejection',e=>{status.textContent='Runtime error: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason))});
@@ -63,9 +63,10 @@ async function prepare(file){
   if(/\.zip$/i.test(file.name)){
     status.textContent='Extracting ZIP locally… '+file.name;
     const zip=new Uint8Array(await file.arrayBuffer());
-    if(!zipLib) throw new Error('Local ZIP extractor is not loaded. Refresh the page and try again.');
+    if(!zipLib) throw new Error('Bundled ZIP extractor is not available.');
     const entries=zipLib.unzipSync(zip);
     for(const [path,data] of Object.entries(entries)) if(!path.endsWith('/')) addFile(path,data);
+    status.textContent='ZIP extracted locally — '+gameFiles.size+' files found.';
   }else{
     addFile(file.name,new Uint8Array(await file.arrayBuffer()));
   }
@@ -74,7 +75,7 @@ async function prepare(file){
   program.innerHTML='';
   for(const p of exes){const o=document.createElement('option');o.value=p;o.textContent=p;program.appendChild(o);}
   selectedProgram=exes[0];
-  if(exes.length>1){programs.style.display='flex';status.textContent='ZIP extracted locally. Choose the DOS program to launch.';return false;}
+  if(exes.length>1){programs.style.display='flex';status.textContent='ZIP extracted — choose the DOS program to launch.';return false;}
   return true;
 }
 async function startDosBox(){
@@ -88,14 +89,8 @@ async function startDosBox(){
     noInitialRun:false,
     noExitRuntime:false,
     preRun:[function(){
-      try{
-        mountFiles(FS);
-        status.textContent='DOSBox files mounted — starting '+path;
-      }catch(err){
-        started=false;
-        status.textContent='File setup error: '+(err&&err.message?err.message:err);
-        throw err;
-      }
+      try{mountFiles(FS);status.textContent='DOSBox files mounted — starting '+path;}
+      catch(err){started=false;status.textContent='File setup error: '+(err&&err.message?err.message:err);throw err;}
     }],
     onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — '+path;canvas.focus()},
     postRun:[function(){status.textContent='DOSBox finished.'}],
@@ -113,10 +108,8 @@ async function startDosBox(){
 }
 input.addEventListener('change',async e=>{
   const file=e.target.files[0]; if(!file||started)return;
-  try{
-    const ready=await prepare(file);
-    if(ready) await startDosBox();
-  }catch(err){started=false;status.textContent='File error: '+err.message}
+  try{const ready=await prepare(file);if(ready) await startDosBox();}
+  catch(err){started=false;status.textContent='File error: '+err.message}
 });
 program.addEventListener('change',()=>selectedProgram=program.value);
 launch.addEventListener('click',async()=>{if(!started){selectedProgram=program.value;programs.style.display='none';await startDosBox()}});
