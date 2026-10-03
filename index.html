@@ -16,7 +16,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="mobileKeyboard"><input id="mobileInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type DOS command"><button id="mobileEnter">Enter</button></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v1.9 — DOOM II executable selection fix</footer>
+<footer>DOSemmu v2.0 — DOOM II working-directory launch fix</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -92,10 +92,15 @@ async function startDosBox(){
   started=true;
   const path=selectedProgram;
   // DOSBox expects DOS path separators and does not use Unix-style "./" paths.
-  const dosPath=path.replace(/\\/g,'/').split('/').join('\\');
+  const dosParts=path.split('/');
+  const dosDir=dosParts.slice(0,-1).join('\\');
+  const dosExe=dosParts[dosParts.length-1];
+  const dosDirCommand=dosDir ? 'cd '+dosDir : '';
   window.Module={
     canvas,
-    arguments:['-c','mount c: /dosgame','-c','c:','-c',dosPath],
+    arguments:dosDir
+      ? ['-c','mount c: /dosgame','-c','c:','-c',dosDirCommand,'-c',dosExe]
+      : ['-c','mount c: /dosgame','-c','c:','-c',dosExe],
     locateFile:function(file){return new URL(file,document.baseURI).href},
     noInitialRun:false,
     noExitRuntime:false,
