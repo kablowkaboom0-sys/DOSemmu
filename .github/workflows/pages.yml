@@ -30,13 +30,21 @@ jobs:
           version: 3.1.74
           actions-cache-folder: emsdk-cache
 
-      - name: Build Em-DOSBox
+      - name: Build local DOSBox WASM
         run: |
-          git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox
-          cd em-dosbox
+          git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox-wasm
+          cd em-dosbox-wasm
           ./autogen.sh
           emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1"
-          # configure generates src/Makefile; remove the obsolete Emscripten flag before make.
+          sed -i 's/ --memory-init-file 0//g' src/Makefile
+          emmake make
+
+      - name: Build local DOSBox asm.js fallback
+        run: |
+          git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox-asm
+          cd em-dosbox-asm
+          ./autogen.sh
+          emconfigure ./configure --disable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1"
           sed -i 's/ --memory-init-file 0//g' src/Makefile
           emmake make
 
@@ -44,14 +52,19 @@ jobs:
         run: |
           mkdir -p _site/dosbox
           test -s fflate.js
+          test -s em-dosbox-wasm/src/dosbox.js
+          test -s em-dosbox-wasm/src/dosbox.wasm
+          test -s em-dosbox-asm/src/dosbox.js
           cp index.html _site/index.html
           cp fflate.js _site/fflate.js
-          cp em-dosbox/src/dosbox.js _site/dosbox.js
-          cp em-dosbox/src/dosbox.wasm _site/dosbox.wasm
-          cp em-dosbox/src/dosbox.js _site/dosbox/dosbox.js
-          cp em-dosbox/src/dosbox.wasm _site/dosbox/dosbox.wasm
-          cp em-dosbox/src/dosbox.html _site/dosbox/dosbox.html
-          cp em-dosbox/COPYING _site/dosbox/COPYING
+          cp em-dosbox-wasm/src/dosbox.js _site/dosbox.js
+          cp em-dosbox-wasm/src/dosbox.wasm _site/dosbox.wasm
+          cp em-dosbox-asm/src/dosbox.js _site/dosbox-asm.js
+          cp em-dosbox-wasm/src/dosbox.js _site/dosbox/dosbox.js
+          cp em-dosbox-wasm/src/dosbox.wasm _site/dosbox/dosbox.wasm
+          cp em-dosbox-asm/src/dosbox.js _site/dosbox/dosbox-asm.js
+          cp em-dosbox-wasm/src/dosbox.html _site/dosbox/dosbox.html
+          cp em-dosbox-wasm/COPYING _site/dosbox/COPYING
           printf '%s\n' 'DOSBox is GPL software. Source: https://github.com/dreamlayers/em-dosbox' > _site/dosbox/LICENSE-INFO.txt
           touch _site/.nojekyll
 
