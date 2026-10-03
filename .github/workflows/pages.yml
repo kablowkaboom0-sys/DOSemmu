@@ -35,7 +35,7 @@ jobs:
           git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox
           cd em-dosbox
           ./autogen.sh
-          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sMAXIMUM_MEMORY=536870912 -sFORCE_FILESYSTEM=1"
+          emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1"
           emmake make
 
       - name: Assemble site
