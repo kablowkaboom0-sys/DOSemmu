@@ -1,42 +1,25 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DOSemmu</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DOSemmu</title>
 <style>
-html,body{margin:0;background:#111;color:#eee;font-family:system-ui,sans-serif}
-body{min-height:100vh;display:flex;flex-direction:column;align-items:center}
-header{width:min(100%,1000px);box-sizing:border-box;padding:14px}
-h1{font-size:20px;margin:0 0 8px}
-p{margin:6px 0;color:#bbb;font-size:14px}
-#controls{width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}
-button,label{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}
-input{display:none}
-#screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;display:flex;align-items:center;justify-content:center;color:#777}
-#status{width:min(100%,960px);box-sizing:border-box;padding:8px 14px;color:#aaa;font-size:13px}
-footer{margin-top:auto;padding:12px;color:#777;font-size:12px}
-</style>
-</head>
-<body>
-<header><h1>DOSemmu — DOSBox</h1><p>Local DOS program loader. Emulator files are stored in this repository; your selected file is processed in your browser.</p></header>
-<div id="controls">
-<label for="file">Choose DOS file</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip">
-<button id="fullscreen">Fullscreen</button>
-<button id="reset">Reset</button>
-</div>
-<div id="screen"><span>Loading local DOSBox engine…</span></div>
-<div id="status">No DOS program selected.</div>
-<footer>DOSemmu v0.1</footer>
+html,body{margin:0;background:#111;color:#eee;font-family:system-ui,sans-serif}body{min-height:100vh;display:flex;flex-direction:column;align-items:center}
+header{width:min(100%,1000px);box-sizing:border-box;padding:14px}h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#bbb;font-size:14px}
+#controls,#touch{width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}
+button,label{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}input{display:none}
+#screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;overflow:hidden}#dosbox{width:100%;height:100%;display:block}
+#status{width:min(100%,960px);box-sizing:border-box;padding:8px 14px;color:#aaa;font-size:13px}footer{margin-top:auto;padding:12px;color:#777;font-size:12px}.touchbtn{min-width:52px;touch-action:none}
+</style></head><body>
+<header><h1>DOSemmu — DOSBox</h1><p>Self-contained DOSBox WASM. Choose a DOS program to run locally in the browser.</p></header>
+<div id="controls"><label for="file">Choose DOS file</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button></div>
+<div id="screen"><canvas id="dosbox" tabindex="0"></canvas></div>
+<div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
+<div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
+<footer>DOSemmu v0.2 — local DOSBox WASM</footer>
 <script>
-const status=document.getElementById('status');
-const screen=document.getElementById('screen');
-document.getElementById('file').addEventListener('change',e=>{
- const f=e.target.files[0]; if(!f)return;
- status.textContent='Selected: '+f.name+' ('+f.size.toLocaleString()+' bytes)';
-});
-document.getElementById('fullscreen').onclick=()=>screen.requestFullscreen?.();
-document.getElementById('reset').onclick=()=>location.reload();
-</script>
-</body>
-</html>
+const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');let started=false;
+function safeName(n){return n.replace(/[^a-zA-Z0-9._-]/g,'_').toUpperCase().slice(0,64)}
+input.addEventListener('change',async e=>{const file=e.target.files[0];if(!file||started)return;started=true;const name=safeName(file.name),data=new Uint8Array(await file.arrayBuffer());status.textContent='Loading local DOSBox… '+file.name;
+window.Module={canvas,noInitialRun:true,arguments:['-c','mount c: /','-c','c:','-c',name],preRun:[function(){try{Module.FS.writeFile('/'+name,data)}catch(err){status.textContent='File setup error: '+err.message}}],onRuntimeInitialized:function(){status.textContent='DOSBox loaded — starting '+name;try{Module.callMain(Module.arguments)}catch(err){status.textContent='DOSBox error: '+err.message}canvas.focus()},print:function(t){status.textContent=t},printErr:function(t){console.error(t)}};
+const s=document.createElement('script');s.src='dosbox/dosbox.js';s.onload=()=>status.textContent='DOSBox engine loaded…';s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};document.body.appendChild(s)});
+document.getElementById('fullscreen').onclick=()=>document.getElementById('screen').requestFullscreen?.();document.getElementById('reset').onclick=()=>location.reload();
+for(const b of document.querySelectorAll('[data-key]')){const key=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();canvas.focus();canvas.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}))});b.addEventListener('pointerup',e=>{e.preventDefault();canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true}))});b.addEventListener('pointercancel',e=>canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true})));}
+</script></body></html>
