@@ -15,7 +15,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="dosbox" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.5 — local DOSBox WASM + ZIP launcher</footer>
+<footer>DOSemmu v0.6 — stable DOSBox WASM launcher</footer>
 <script src="fflate.js"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');
@@ -90,7 +90,7 @@ async function startDosBox(){
         throw err;
       }
     }],
-    onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — starting '+path;canvas.focus()},
+    onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — '+path;canvas.focus()},
     onAbort:function(reason){started=false;status.textContent='DOSBox stopped: '+reason},
     onExit:function(code){started=false;status.textContent='DOSBox exited (code '+code+').'},
     monitorRunDependencies:function(left){if(left>0)status.textContent='Loading DOSBox runtime… '+left+' step(s) left'},
@@ -99,7 +99,7 @@ async function startDosBox(){
   };
   const s=document.createElement('script');
   s.src='dosbox/dosbox.js';
-  s.onload=()=>status.textContent='DOSBox engine script loaded — starting runtime…';
+  s.onload=()=>status.textContent='DOSBox engine loaded — initializing runtime…';
   s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};
   document.body.appendChild(s);
 }
