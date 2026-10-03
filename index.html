@@ -16,7 +16,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="mobileKeyboard"><input id="mobileInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type DOS command"><button id="mobileEnter">Enter</button></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v2.0 — DOOM II working-directory launch fix</footer>
+<footer>DOSemmu v2.1 — touch and mobile keyboard input fix</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -85,8 +85,25 @@ async function prepare(file){
   if(exes.length>1){programs.style.display='flex';status.textContent='ZIP extracted — choose the DOS program to launch.';return false;}
   return true;
 }
-function sendKey(key,code){canvas.focus();const d=new KeyboardEvent('keydown',{key,code:code||'',bubbles:true,cancelable:true});try{Object.defineProperty(d,'keyCode',{value:code||0});Object.defineProperty(d,'which',{value:code||0});}catch(e){}canvas.dispatchEvent(d);const u=new KeyboardEvent('keyup',{key,code:code||'',bubbles:true,cancelable:true});try{Object.defineProperty(u,'keyCode',{value:code||0});Object.defineProperty(u,'which',{value:code||0});}catch(e){}canvas.dispatchEvent(u);}
-function sendMobileText(text){for(const ch of text){const code=ch.length===1?ch.toUpperCase().charCodeAt(0):0;sendKey(ch,code);}}
+const keyInfo={
+  ArrowUp:{code:'ArrowUp',keyCode:38},ArrowDown:{code:'ArrowDown',keyCode:40},
+  ArrowLeft:{code:'ArrowLeft',keyCode:37},ArrowRight:{code:'ArrowRight',keyCode:39},
+  Enter:{code:'Enter',keyCode:13},Escape:{code:'Escape',keyCode:27},
+  ' ':{code:'Space',keyCode:32},Space:{code:'Space',keyCode:32}
+};
+function sendKey(key){
+  const info=keyInfo[key]||{code:key.length===1?'Key'+key.toUpperCase():key,keyCode:key.length===1?key.toUpperCase().charCodeAt(0):0};
+  canvas.focus();
+  const ev=new KeyboardEvent('keydown',{key:key==='Space'?' ':key,code:info.code,bubbles:true,cancelable:true});
+  for(const prop of ['keyCode','which','charCode']){try{Object.defineProperty(ev,prop,{value:info.keyCode})}catch(e){}}
+  canvas.dispatchEvent(ev);
+}
+function releaseKey(key){
+  const info=keyInfo[key]||{code:key.length===1?'Key'+key.toUpperCase():key,keyCode:key.length===1?key.toUpperCase().charCodeAt(0):0};
+  const ev=new KeyboardEvent('keyup',{key:key==='Space'?' ':key,code:info.code,bubbles:true,cancelable:true});
+  for(const prop of ['keyCode','which','charCode']){try{Object.defineProperty(ev,prop,{value:info.keyCode})}catch(e){}}
+  canvas.dispatchEvent(ev);
+}
 async function startDosBox(){
   if(started)return;
   started=true;
@@ -158,12 +175,32 @@ launch.addEventListener('click',async()=>{if(!started){selectedProgram=program.v
 document.getElementById('fullscreen').onclick=()=>document.getElementById('screen').requestFullscreen?.();
 document.getElementById('reset').onclick=()=>location.reload();
 keyboardBtn.onclick=()=>{mobileKeyboard.style.display=mobileKeyboard.style.display==='flex'?'none':'flex';if(mobileKeyboard.style.display==='flex')setTimeout(()=>mobileInput.focus(),50);};
-mobileEnter.onclick=()=>{if(mobileInput.value)sendMobileText(mobileInput.value);mobileInput.value='';sendKey('Enter',13);};
-mobileInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();mobileEnter.click();}});
+mobileEnter.onclick=()=>{
+  mobileInput.focus();
+  const ev=new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true});
+  try{Object.defineProperty(ev,'keyCode',{value:13});Object.defineProperty(ev,'which',{value:13})}catch(e){}
+  mobileInput.dispatchEvent(ev);
+  mobileInput.value='';
+};
+mobileInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    setTimeout(()=>{mobileInput.value='';},0);
+  }
+});
 for(const b of document.querySelectorAll('[data-key]')){
   const key=b.dataset.key;
-  b.addEventListener('pointerdown',e=>{e.preventDefault();canvas.focus();canvas.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}))});
-  b.addEventListener('pointerup',e=>{e.preventDefault();canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true}))});
-  b.addEventListener('pointercancel',e=>canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true})));
-}
-</script></body></html>
+  b.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    try{b.setPointerCapture(e.pointerId)}catch(err){}
+    b.dataset.held='1';
+    sendKey(key);
+  });
+  b.addEventListener('pointerup',e=>{
+    e.preventDefault();
+    b.dataset.held='';
+    releaseKey(key);
+    try{b.releasePointerCapture(e.pointerId)}catch(err){}
+  });
+  b.addEventListener('pointercancel',e=>{b.dataset.held='';releaseKey(key);});
+  b.addEventListener('lostpointercapture',()=>{if(b.dataset.held){b.dataset.held='';releaseKey(key);}});
+}</script></body></html>
