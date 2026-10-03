@@ -35,10 +35,9 @@ jobs:
           git clone --depth 1 --branch em-dosbox-svn-sdl2 https://github.com/dreamlayers/em-dosbox.git em-dosbox
           cd em-dosbox
           ./autogen.sh
-          # The old Em-DOSBox Makefile passes --memory-init-file, which modern
-          # Emscripten removed. The build does not need that obsolete flag.
-          sed -i 's/ --memory-init-file 0//g' src/Makefile
           emconfigure ./configure --enable-wasm --disable-opengl --host=none-none-none CFLAGS="-O2" LDFLAGS="-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=268435456 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1"
+          # configure generates src/Makefile; remove the obsolete Emscripten flag before make.
+          sed -i 's/ --memory-init-file 0//g' src/Makefile
           emmake make
 
       - name: Assemble site
