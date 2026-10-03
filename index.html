@@ -7,16 +7,16 @@ header{width:min(100%,1000px);box-sizing:border-box;padding:14px}h1{font-size:20
 button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}input{display:none}
 #screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;overflow:hidden}#canvas{width:100%;height:100%;display:block}
 #status{width:min(100%,960px);box-sizing:border-box;padding:8px 14px;color:#aaa;font-size:13px}footer{margin-top:auto;padding:12px;color:#777;font-size:12px}.touchbtn{min-width:52px;touch-action:none}
-#programs{display:none;align-items:center}#programs select{min-width:220px}#mobileKeyboard{display:none;width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;gap:8px}#mobileKeyboard input{display:block;flex:1;min-width:0;background:#222;color:#fff;border:1px solid #555;border-radius:7px;padding:10px;font-size:16px}
+#programs{display:none;align-items:center}#programs select{min-width:220px}#mobileKeyboard{display:none;width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;gap:8px}#keyboardHint{color:#888;font-size:12px;padding:9px 4px;align-self:center}#mobileKeyboard input{display:block;flex:1;min-width:0;background:#222;color:#fff;border:1px solid #555;border-radius:7px;padding:10px;font-size:16px}
 </style></head><body>
-<header><h1>DOSemmu — DOSBox</h1><p>Local DOSBox WASM. ZIP game folders are extracted locally and mounted together.</p></header>
-<div id="controls"><label for="file">Choose DOS file or ZIP</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button><button id="keyboard">⌨ Keyboard</button></div>
+<header><h1>DOSemmu — DOSBox</h1><p>Local DOSBox is bundled in this website. iPad uses a local asm.js fallback if WASM is unavailable.</p></header>
+<div id="controls"><label for="file">Choose DOS file or ZIP</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button><button id="keyboard">⌨ Keyboard</button><span id="keyboardHint">External USB/Bluetooth keyboard supported</span></div>
 <div id="programs"><select id="program"></select><button id="launch">Launch selected program</button></div>
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="mobileKeyboard"><input id="mobileInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type DOS command"><button id="mobileEnter">Enter</button></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v2.1 — touch and mobile keyboard input fix</footer>
+<footer>DOSemmu v2.2 — iPad local asm.js fallback + external keyboard</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -108,24 +108,30 @@ async function startDosBox(){
   if(started)return;
   started=true;
   const path=selectedProgram;
-  // DOSBox expects DOS path separators and does not use Unix-style "./" paths.
   const dosParts=path.split('/');
   const dosDir=dosParts.slice(0,-1).join('\\');
   const dosExe=dosParts[dosParts.length-1];
   const dosDirCommand=dosDir ? 'cd '+dosDir : '';
+  const args=dosDir
+    ? ['-c','mount c: /dosgame','-c','c:','-c',dosDirCommand,'-c',dosExe]
+    : ['-c','mount c: /dosgame','-c','c:','-c',dosExe];
+
+  const isIPad=/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1;
+  const wasmSupported=typeof WebAssembly==='object' && typeof WebAssembly.instantiate==='function';
+  const useAsmFallback=isIPad || !wasmSupported;
+  const runtimeFile=useAsmFallback?'dosbox-asm.js':'dosbox.js';
+
   window.Module={
     canvas,
-    arguments:dosDir
-      ? ['-c','mount c: /dosgame','-c','c:','-c',dosDirCommand,'-c',dosExe]
-      : ['-c','mount c: /dosgame','-c','c:','-c',dosExe],
+    arguments:args,
     locateFile:function(file){return new URL(file,document.baseURI).href},
     noInitialRun:false,
     noExitRuntime:false,
-    setStatus:function(t){ if(t) status.textContent='DOSBox: '+t; },
+    setStatus:function(t){if(t)status.textContent='DOSBox: '+t},
     onRuntimeInitialized:function(){
       try{
         mountFiles(FS);
-        status.textContent='DOSBox files mounted — starting '+path;
+        status.textContent=(useAsmFallback?'Local asm.js DOSBox ready — ':'DOSBox WASM ready — ')+'starting '+path;
         canvas.focus();
       }catch(err){
         started=false;
@@ -137,34 +143,80 @@ async function startDosBox(){
     onAbort:function(reason){started=false;status.textContent='DOSBox stopped: '+reason},
     onExit:function(code){started=false;status.textContent='DOSBox exited (code '+code+').'},
     monitorRunDependencies:function(left){
-      if(left>0)status.textContent='Loading DOSBox runtime… '+left+' step(s) left';
-      else if(!started) status.textContent='DOSBox runtime finished loading.';
+      if(left>0)status.textContent='Loading local '+(useAsmFallback?'asm.js':'WASM')+' DOSBox… '+left+' step(s) left';
     },
-    print:function(t){status.textContent=t},
-    printErr:function(t){status.textContent='DOSBox: '+t;console.error(t)}
+    print:function(t){if(t)status.textContent=t},
+    printErr:function(t){if(t){status.textContent='DOSBox: '+t;console.error(t)}}
   };
-  const watchdog=setTimeout(()=>{
-    if(started) status.textContent='DOSBox WASM is still initializing — check whether the browser blocked dosbox.wasm.';
-  },15000);
-  const wasmUrl=new URL('dosbox.wasm',document.baseURI).href;
-  status.textContent='Checking local DOSBox WASM…';
-  try{
-    const probe=await fetch(wasmUrl,{cache:'no-store'});
-    if(!probe.ok) throw new Error('WASM HTTP '+probe.status);
-    const type=(probe.headers.get('content-type')||'').toLowerCase();
-    if(!type.includes('wasm') && !type.includes('octet-stream')) throw new Error('WASM has unexpected content type: '+type);
-  }catch(err){
-    started=false;
-    status.textContent='WASM file could not be loaded: '+err.message;
-    return;
+
+  status.textContent=useAsmFallback
+    ? 'iPad compatibility mode — starting bundled asm.js DOSBox…'
+    : 'Checking bundled DOSBox WASM…';
+
+  if(!useAsmFallback){
+    const wasmUrl=new URL('dosbox.wasm',document.baseURI).href;
+    try{
+      const probe=await fetch(wasmUrl,{cache:'no-store'});
+      if(!probe.ok)throw new Error('WASM HTTP '+probe.status);
+      const type=(probe.headers.get('content-type')||'').toLowerCase();
+      if(!type.includes('wasm') && !type.includes('octet-stream'))throw new Error('WASM has unexpected content type: '+type);
+    }catch(err){
+      status.textContent='WASM unavailable ('+err.message+') — switching to bundled asm.js…';
+      await new Promise(r=>setTimeout(r,250));
+      window.Module=null;
+      started=false;
+      return startDosBoxAsm(path,args);
+    }
   }
-  status.textContent='WASM file found — starting DOSBox…';
+
+  status.textContent='Loading bundled DOSBox '+(useAsmFallback?'asm.js':'WASM')+' engine…';
   const s=document.createElement('script');
-  s.src=new URL('dosbox.js',document.baseURI).href;
-  s.onload=()=>status.textContent='DOSBox engine loaded — initializing WASM…';
-  s.onerror=()=>{clearTimeout(watchdog);started=false;status.textContent='Local DOSBox engine failed to load: '+s.src};
+  s.src=new URL(runtimeFile,document.baseURI).href;
+  s.onload=()=>status.textContent='Bundled DOSBox engine loaded — initializing…';
+  s.onerror=()=>{
+    started=false;
+    status.textContent='Local DOSBox engine failed to load: '+s.src;
+  };
   document.body.appendChild(s);
 }
+async function startDosBoxAsm(path,args){
+  if(started)return;
+  started=true;
+  const canvasRef=canvas;
+  window.Module={
+    canvas:canvasRef,
+    arguments:args,
+    locateFile:function(file){return new URL(file,document.baseURI).href},
+    noInitialRun:false,
+    noExitRuntime:false,
+    setStatus:function(t){if(t)status.textContent='DOSBox: '+t},
+    onRuntimeInitialized:function(){
+      try{
+        mountFiles(FS);
+        status.textContent='Bundled asm.js DOSBox ready — starting '+path;
+        canvasRef.focus();
+      }catch(err){
+        started=false;
+        status.textContent='File setup error: '+(err&&err.message?err.message:err);
+        throw err;
+      }
+    },
+    postRun:[function(){status.textContent='DOSBox finished.'}],
+    onAbort:function(reason){started=false;status.textContent='DOSBox stopped: '+reason},
+    onExit:function(code){started=false;status.textContent='DOSBox exited (code '+code+').'},
+    monitorRunDependencies:function(left){
+      if(left>0)status.textContent='Loading bundled asm.js DOSBox… '+left+' step(s) left';
+    },
+    print:function(t){if(t)status.textContent=t},
+    printErr:function(t){if(t){status.textContent='DOSBox: '+t;console.error(t)}}
+  };
+  const s=document.createElement('script');
+  s.src=new URL('dosbox-asm.js',document.baseURI).href;
+  s.onload=()=>status.textContent='Bundled asm.js engine loaded — initializing…';
+  s.onerror=()=>{started=false;status.textContent='Bundled asm.js DOSBox engine failed to load.'};
+  document.body.appendChild(s);
+}
+
 input.addEventListener('change',async e=>{
   const file=e.target.files[0]; if(!file||started)return;
   try{const ready=await prepare(file);if(ready) await startDosBox();}
@@ -174,6 +226,18 @@ program.addEventListener('change',()=>selectedProgram=program.value);
 launch.addEventListener('click',async()=>{if(!started){selectedProgram=program.value;programs.style.display='none';await startDosBox()}});
 document.getElementById('fullscreen').onclick=()=>document.getElementById('screen').requestFullscreen?.();
 document.getElementById('reset').onclick=()=>location.reload();
+
+document.addEventListener('keydown',e=>{
+  if(!started || document.activeElement===mobileInput) return;
+  canvas.focus();
+  const gameKeys=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape',' ','Tab','Backspace'];
+  if(gameKeys.includes(e.key)) e.preventDefault();
+});
+
+canvas.addEventListener('pointerdown',()=>{
+  if(started) canvas.focus();
+});
+
 keyboardBtn.onclick=()=>{mobileKeyboard.style.display=mobileKeyboard.style.display==='flex'?'none':'flex';if(mobileKeyboard.style.display==='flex')setTimeout(()=>mobileInput.focus(),50);};
 mobileEnter.onclick=()=>{
   mobileInput.focus();
