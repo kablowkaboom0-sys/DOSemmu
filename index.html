@@ -5,7 +5,7 @@ html,body{margin:0;background:#111;color:#eee;font-family:system-ui,sans-serif}b
 header{width:min(100%,1000px);box-sizing:border-box;padding:14px}h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#bbb;font-size:14px}
 #controls,#programs,#touch{width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}
 button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}input{display:none}
-#screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;overflow:hidden}#dosbox{width:100%;height:100%;display:block}
+#screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;overflow:hidden}#canvas{width:100%;height:100%;display:block}
 #status{width:min(100%,960px);box-sizing:border-box;padding:8px 14px;color:#aaa;font-size:13px}footer{margin-top:auto;padding:12px;color:#777;font-size:12px}.touchbtn{min-width:52px;touch-action:none}
 #programs{display:none;align-items:center}#programs select{min-width:220px}
 </style></head><body>
@@ -15,12 +15,14 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.7 — DOSBox canvas compatibility fix</footer>
+<footer>DOSemmu v0.8 — DOSBox runtime compatibility</footer>
 <script src="fflate.js"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
 const programs=document.getElementById('programs'),program=document.getElementById('program'),launch=document.getElementById('launch');
 let started=false,gameFiles=new Map(),selectedProgram='';
+window.addEventListener('error',e=>{status.textContent='Runtime error: '+(e.message||'unknown JavaScript error')});
+window.addEventListener('unhandledrejection',e=>{status.textContent='Runtime error: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason))});
 
 function cleanPath(path){
   return path.replace(/\\/g,'/').replace(/^\/+/, '').split('/').filter(p=>p && p!=='.' && p!=='..').join('/');
@@ -80,6 +82,8 @@ async function startDosBox(){
     canvas,
     arguments:['-c','mount c: /dosgame','-c','c:','-c','./'+path.replace(/\\/g,'/')],
     locateFile:function(file){return 'dosbox/'+file},
+    noInitialRun:false,
+    noExitRuntime:false,
     preRun:[function(){
       try{
         mountFiles(FS);
@@ -91,6 +95,7 @@ async function startDosBox(){
       }
     }],
     onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — '+path;canvas.focus()},
+    postRun:[function(){status.textContent='DOSBox finished.'}],
     onAbort:function(reason){started=false;status.textContent='DOSBox stopped: '+reason},
     onExit:function(code){started=false;status.textContent='DOSBox exited (code '+code+').'},
     monitorRunDependencies:function(left){if(left>0)status.textContent='Loading DOSBox runtime… '+left+' step(s) left'},
