@@ -48,6 +48,25 @@ jobs:
           sed -i 's/ --memory-init-file 0//g' src/Makefile
           emmake make
 
+      - name: Patch Emscripten numeric event targets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          needle = "specialHTMLTargets[target] || (typeof document !== 'undefined' ? document.querySelector(target) : void 0)"
+          replacement = "specialHTMLTargets[target] || (typeof target === 'number' ? void 0 : (typeof document !== 'undefined' ? document.querySelector(target) : void 0))"
+
+          for path in [
+              Path("em-dosbox-wasm/src/dosbox.js"),
+              Path("em-dosbox-asm/src/dosbox.js"),
+          ]:
+              text = path.read_text()
+              if needle not in text:
+                  raise SystemExit(f"Expected Emscripten event-target code not found in {path}")
+              text = text.replace(needle, replacement)
+              path.write_text(text)
+              print(f"Patched {path}")
+
       - name: Assemble site
         run: |
           mkdir -p _site/dosbox
