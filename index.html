@@ -3,23 +3,107 @@
 <style>
 html,body{margin:0;background:#111;color:#eee;font-family:system-ui,sans-serif}body{min-height:100vh;display:flex;flex-direction:column;align-items:center}
 header{width:min(100%,1000px);box-sizing:border-box;padding:14px}h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#bbb;font-size:14px}
-#controls,#touch{width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}
-button,label{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}input{display:none}
+#controls,#programs,#touch{width:min(100%,1000px);box-sizing:border-box;padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap}
+button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-radius:7px;padding:9px 12px;cursor:pointer}input{display:none}
 #screen{width:min(100%,960px);aspect-ratio:4/3;background:#000;border:1px solid #444;overflow:hidden}#dosbox{width:100%;height:100%;display:block}
 #status{width:min(100%,960px);box-sizing:border-box;padding:8px 14px;color:#aaa;font-size:13px}footer{margin-top:auto;padding:12px;color:#777;font-size:12px}.touchbtn{min-width:52px;touch-action:none}
+#programs{display:none;align-items:center}#programs select{min-width:220px}
 </style></head><body>
-<header><h1>DOSemmu — DOSBox</h1><p>Self-contained DOSBox WASM. Choose a DOS program to run locally in the browser.</p></header>
-<div id="controls"><label for="file">Choose DOS file</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button></div>
+<header><h1>DOSemmu — DOSBox</h1><p>Local DOSBox WASM. ZIP game folders are extracted locally and mounted together.</p></header>
+<div id="controls"><label for="file">Choose DOS file or ZIP</label><input id="file" type="file" accept=".exe,.com,.bat,.img,.iso,.zip"><button id="fullscreen">Fullscreen</button><button id="reset">Reset</button></div>
+<div id="programs"><select id="program"></select><button id="launch">Launch selected program</button></div>
 <div id="screen"><canvas id="dosbox" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.2 — local DOSBox WASM</footer>
+<footer>DOSemmu v0.3 — local DOSBox WASM + local ZIP extraction</footer>
+<script src="fflate.js"></script>
 <script>
-const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');let started=false;
-function safeName(n){return n.replace(/[^a-zA-Z0-9._-]/g,'_').toUpperCase().slice(0,64)}
-input.addEventListener('change',async e=>{const file=e.target.files[0];if(!file||started)return;started=true;const name=safeName(file.name),data=new Uint8Array(await file.arrayBuffer());status.textContent='Loading local DOSBox… '+file.name;
-window.Module={canvas,arguments:['-c','mount c: /','-c','c:','-c',name],preRun:[function(){try{Module.FS.writeFile('/'+name,data)}catch(err){status.textContent='File setup error: '+err.message}}],onRuntimeInitialized:function(){status.textContent='DOSBox loaded — starting '+name;canvas.focus()},print:function(t){status.textContent=t},printErr:function(t){console.error(t)}};
-const s=document.createElement('script');s.src='dosbox/dosbox.js';s.onload=()=>status.textContent='DOSBox engine loaded…';s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};document.body.appendChild(s)});
-document.getElementById('fullscreen').onclick=()=>document.getElementById('screen').requestFullscreen?.();document.getElementById('reset').onclick=()=>location.reload();
-for(const b of document.querySelectorAll('[data-key]')){const key=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();canvas.focus();canvas.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}))});b.addEventListener('pointerup',e=>{e.preventDefault();canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true}))});b.addEventListener('pointercancel',e=>canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true})));}
+const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('dosbox');
+const programs=document.getElementById('programs'),program=document.getElementById('program'),launch=document.getElementById('launch');
+let started=false,gameFiles=new Map(),selectedProgram='';
+
+function cleanPath(path){
+  return path.replace(/\\/g,'/').replace(/^\/+/, '').split('/').filter(p=>p && p!=='.' && p!=='..').join('/');
+}
+function addFile(path,data){
+  const p=cleanPath(path);
+  if(p && !p.endsWith('/')) gameFiles.set(p,data);
+}
+function executableCandidates(){
+  return [...gameFiles.keys()].filter(p=>/\.(exe|com|bat)$/i.test(p)).sort((a,b)=>{
+    const an=a.toLowerCase(),bn=b.toLowerCase();
+    const as=an.endsWith('/doom2.exe')||an==='doom2.exe'?0:an.endsWith('/doom.exe')||an==='doom.exe'?1:2;
+    const bs=bn.endsWith('/doom2.exe')||bn==='doom2.exe'?0:bn.endsWith('/doom.exe')||bn==='doom.exe'?1:2;
+    return as-bs||a.localeCompare(b);
+  });
+}
+function mkdirp(fs,path){
+  let cur='';
+  for(const part of path.split('/')){
+    if(!part) continue;
+    cur+='/'+part;
+    try{fs.mkdir(cur)}catch(e){}
+  }
+}
+function mountFiles(fs){
+  for(const [path,data] of gameFiles){
+    const parts=path.split('/');
+    const dir=parts.slice(0,-1).join('/');
+    if(dir) mkdirp(fs,'/'+dir);
+    fs.writeFile('/'+path,data);
+  }
+}
+async function prepare(file){
+  gameFiles.clear();
+  if(/\.zip$/i.test(file.name)){
+    status.textContent='Extracting ZIP locally… '+file.name;
+    const zip=new Uint8Array(await file.arrayBuffer());
+    const entries=fflate.unzipSync(zip);
+    for(const [path,data] of Object.entries(entries)) if(!path.endsWith('/')) addFile(path,data);
+  }else{
+    addFile(file.name,new Uint8Array(await file.arrayBuffer()));
+  }
+  const exes=executableCandidates();
+  if(!exes.length) throw new Error('No .EXE, .COM or .BAT program was found.');
+  program.innerHTML='';
+  for(const p of exes){const o=document.createElement('option');o.value=p;o.textContent=p;program.appendChild(o);}
+  selectedProgram=exes[0];
+  if(exes.length>1){programs.style.display='flex';status.textContent='ZIP extracted locally. Choose the DOS program to launch.';return false;}
+  return true;
+}
+async function startDosBox(){
+  if(started)return;
+  started=true;
+  const path=selectedProgram;
+  window.Module={
+    canvas,
+    arguments:['-c','mount c: /','-c','c:','-c',path.replace(/\\/g,'/')],
+    preRun:[function(){try{mountFiles(Module.FS)}catch(err){started=false;status.textContent='File setup error: '+err.message}}],
+    onRuntimeInitialized:function(){status.textContent='DOSBox loaded — starting '+path;canvas.focus()},
+    print:function(t){status.textContent=t},
+    printErr:function(t){console.error(t)}
+  };
+  const s=document.createElement('script');
+  s.src='dosbox/dosbox.js';
+  s.onload=()=>status.textContent='DOSBox engine loaded…';
+  s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};
+  document.body.appendChild(s);
+}
+input.addEventListener('change',async e=>{
+  const file=e.target.files[0]; if(!file||started)return;
+  try{
+    const ready=await prepare(file);
+    if(ready) await startDosBox();
+  }catch(err){started=false;status.textContent='File error: '+err.message}
+});
+program.addEventListener('change',()=>selectedProgram=program.value);
+launch.addEventListener('click',async()=>{if(!started){selectedProgram=program.value;programs.style.display='none';await startDosBox()}});
+document.getElementById('fullscreen').onclick=()=>document.getElementById('screen').requestFullscreen?.();
+document.getElementById('reset').onclick=()=>location.reload();
+for(const b of document.querySelectorAll('[data-key]')){
+  const key=b.dataset.key;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();canvas.focus();canvas.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}))});
+  b.addEventListener('pointerup',e=>{e.preventDefault();canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true}))});
+  b.addEventListener('pointercancel',e=>canvas.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true})));
+}
 </script></body></html>
