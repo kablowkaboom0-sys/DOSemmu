@@ -53,19 +53,21 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          needle = "specialHTMLTargets[target] || (typeof document !== 'undefined' ? document.querySelector(target) : void 0)"
-          replacement = "specialHTMLTargets[target] || (typeof target === 'number' ? void 0 : (typeof document !== 'undefined' ? document.querySelector(target) : void 0))"
-
           for path in [
               Path("em-dosbox-wasm/src/dosbox.js"),
               Path("em-dosbox-asm/src/dosbox.js"),
           ]:
               text = path.read_text()
-              if needle not in text:
-                  raise SystemExit(f"Expected Emscripten event-target code not found in {path}")
-              text = text.replace(needle, replacement)
+              old = "document.querySelector(target)"
+              new = "(typeof target === 'number' ? void 0 : document.querySelector(target))"
+              count = text.count(old)
+              if count == 0:
+                  raise SystemExit(f"No dynamic event-target querySelector found in {path}")
+              text = text.replace(old, new)
               path.write_text(text)
-              print(f"Patched {path}")
+              print(f"Patched {path}: {count} occurrence(s)")
+          PY
+
 
       - name: Assemble site
         run: |
