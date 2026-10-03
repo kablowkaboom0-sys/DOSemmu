@@ -15,7 +15,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v1.2 — runtime launch fix</footer>
+<footer>DOSemmu v1.3 — WASM startup diagnostics</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -88,6 +88,7 @@ async function startDosBox(){
     locateFile:function(file){return new URL('dosbox/'+file,document.baseURI).href},
     noInitialRun:false,
     noExitRuntime:false,
+    setStatus:function(t){ if(t) status.textContent='DOSBox: '+t; },
     onRuntimeInitialized:function(){
       try{
         mountFiles(FS);
@@ -109,10 +110,13 @@ async function startDosBox(){
     print:function(t){status.textContent=t},
     printErr:function(t){status.textContent='DOSBox: '+t;console.error(t)}
   };
+  const watchdog=setTimeout(()=>{
+    if(started) status.textContent='DOSBox WASM is still initializing — check whether the browser blocked dosbox.wasm.';
+  },15000);
   const s=document.createElement('script');
   s.src=new URL('dosbox/dosbox.js',document.baseURI).href;
-  s.onload=()=>status.textContent='DOSBox engine loaded — initializing runtime…';
-  s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load: '+s.src};
+  s.onload=()=>status.textContent='DOSBox engine loaded — downloading/initializing WASM…';
+  s.onerror=()=>{clearTimeout(watchdog);started=false;status.textContent='Local DOSBox engine failed to load: '+s.src};
   document.body.appendChild(s);
 }
 input.addEventListener('change',async e=>{
