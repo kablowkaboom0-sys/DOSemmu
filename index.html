@@ -15,7 +15,7 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v1.0 — bundled local ZIP extractor</footer>
+<footer>DOSemmu v1.1 — DOSBox filesystem startup fix</footer>
 <script src="fflate.js?v=1.0"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
@@ -85,11 +85,11 @@ async function startDosBox(){
   window.Module={
     canvas,
     arguments:['-c','mount c: /dosgame','-c','c:','-c','./'+path.replace(/\\/g,'/')],
-    locateFile:function(file){return 'dosbox/'+file},
+    locateFile:function(file){return new URL('dosbox/'+file,document.baseURI).href},
     noInitialRun:false,
     noExitRuntime:false,
     preRun:[function(){
-      try{mountFiles(FS);status.textContent='DOSBox files mounted — starting '+path;}
+      try{if(!FS.initialized) FS.init();mountFiles(FS);status.textContent='DOSBox files mounted — starting '+path;}
       catch(err){started=false;status.textContent='File setup error: '+(err&&err.message?err.message:err);throw err;}
     }],
     onRuntimeInitialized:function(){status.textContent='DOSBox runtime ready — '+path;canvas.focus()},
@@ -101,9 +101,9 @@ async function startDosBox(){
     printErr:function(t){status.textContent='DOSBox: '+t;console.error(t)}
   };
   const s=document.createElement('script');
-  s.src='dosbox/dosbox.js';
+  s.src=new URL('dosbox/dosbox.js',document.baseURI).href;
   s.onload=()=>status.textContent='DOSBox engine loaded — initializing runtime…';
-  s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load.'};
+  s.onerror=()=>{started=false;status.textContent='Local DOSBox engine failed to load: '+s.src};
   document.body.appendChild(s);
 }
 input.addEventListener('change',async e=>{
