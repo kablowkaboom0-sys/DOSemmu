@@ -113,9 +113,22 @@ async function startDosBox(){
   const watchdog=setTimeout(()=>{
     if(started) status.textContent='DOSBox WASM is still initializing — check whether the browser blocked dosbox.wasm.';
   },15000);
+  const wasmUrl=new URL('dosbox/dosbox.wasm',document.baseURI).href;
+  status.textContent='Checking local DOSBox WASM…';
+  try{
+    const probe=await fetch(wasmUrl,{cache:'no-store'});
+    if(!probe.ok) throw new Error('WASM HTTP '+probe.status);
+    const type=(probe.headers.get('content-type')||'').toLowerCase();
+    if(!type.includes('wasm') && !type.includes('octet-stream')) throw new Error('WASM has unexpected content type: '+type);
+  }catch(err){
+    started=false;
+    status.textContent='WASM file could not be loaded: '+err.message;
+    return;
+  }
+  status.textContent='WASM file found — starting DOSBox…';
   const s=document.createElement('script');
   s.src=new URL('dosbox/dosbox.js',document.baseURI).href;
-  s.onload=()=>status.textContent='DOSBox engine loaded — downloading/initializing WASM…';
+  s.onload=()=>status.textContent='DOSBox engine loaded — initializing WASM…';
   s.onerror=()=>{clearTimeout(watchdog);started=false;status.textContent='Local DOSBox engine failed to load: '+s.src};
   document.body.appendChild(s);
 }
