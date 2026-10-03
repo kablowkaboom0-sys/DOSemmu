@@ -15,11 +15,13 @@ button,label,select{background:#2a2a2a;color:#fff;border:1px solid #555;border-r
 <div id="screen"><canvas id="canvas" tabindex="0"></canvas></div>
 <div id="status">Choose a .EXE, .COM, .BAT, .IMG, .ISO or .ZIP file to start.</div>
 <div id="touch"><button class="touchbtn" data-key="ArrowUp">▲</button><button class="touchbtn" data-key="ArrowDown">▼</button><button class="touchbtn" data-key="ArrowLeft">◀</button><button class="touchbtn" data-key="ArrowRight">▶</button><button class="touchbtn" data-key="Enter">Enter</button><button class="touchbtn" data-key="Escape">Esc</button><button class="touchbtn" data-key=" ">Space</button></div>
-<footer>DOSemmu v0.8 — DOSBox runtime compatibility</footer>
-<script src="fflate.js"></script>
+<footer>DOSemmu v0.9 — local ZIP extractor fix</footer>
+<script src="fflate.js" onerror="window.__fflateLoadError=true"></script>
 <script>
 const input=document.getElementById('file'),status=document.getElementById('status'),canvas=document.getElementById('canvas');
 const programs=document.getElementById('programs'),program=document.getElementById('program'),launch=document.getElementById('launch');
+let zipLib=null;
+window.addEventListener('load',()=>{zipLib=window.fflate||null;if(!zipLib){status.textContent=window.__fflateLoadError?'ZIP extractor failed to load from this page.':'ZIP extractor is not available.';}});
 let started=false,gameFiles=new Map(),selectedProgram='';
 window.addEventListener('error',e=>{status.textContent='Runtime error: '+(e.message||'unknown JavaScript error')});
 window.addEventListener('unhandledrejection',e=>{status.textContent='Runtime error: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason))});
@@ -61,7 +63,8 @@ async function prepare(file){
   if(/\.zip$/i.test(file.name)){
     status.textContent='Extracting ZIP locally… '+file.name;
     const zip=new Uint8Array(await file.arrayBuffer());
-    const entries=fflate.unzipSync(zip);
+    if(!zipLib) throw new Error('Local ZIP extractor is not loaded. Refresh the page and try again.');
+    const entries=zipLib.unzipSync(zip);
     for(const [path,data] of Object.entries(entries)) if(!path.endsWith('/')) addFile(path,data);
   }else{
     addFile(file.name,new Uint8Array(await file.arrayBuffer()));
